@@ -68,6 +68,7 @@ UA = {"User-Agent": "btc-oi-liq/1.0"}
 _lock = threading.RLock()
 _cache: dict[str, tuple[float, Any]] = {}
 _liqs: deque[dict] = deque(maxlen=5000)
+_liq_keys: set[tuple] = set()
 _ws_status: dict[str, Any] = {
     "binance": {"ok": False, "last": None, "err": None},
     "bybit": {"ok": False, "last": None, "err": None},
@@ -106,7 +107,7 @@ def _num(x, default=None):
 
 
 def _push_liq(item: dict):
-    """Dedup by (ex, ts, side, qty, price) loose key."""
+    """Dedup by (ex, ts, side, qty, price)."""
     key = (
         item.get("ex"),
         item.get("ts"),
@@ -115,17 +116,25 @@ def _push_liq(item: dict):
         round(float(item.get("price") or 0), 2),
     )
     with _lock:
-        for existing in list(_liqs)[-80:]:
-            ek = (
-                existing.get("ex"),
-                existing.get("ts"),
-                existing.get("side"),
-                round(float(existing.get("qty") or 0), 6),
-                round(float(existing.get("price") or 0), 2),
-            )
-            if ek == key:
-                return
+        if key in _liq_keys:
+            return
+        _liq_keys.add(key)
         _liqs.appendleft(item)
+        # keep key set bounded with deque
+        while len(_liq_keys) > _liqs.maxlen:
+            # drop arbitrary old keys by rebuilding from buffer
+            _liq_keys.clear()
+            for existing in _liqs:
+                _liq_keys.add(
+                    (
+                        existing.get("ex"),
+                        existing.get("ts"),
+                        existing.get("side"),
+                        round(float(existing.get("qty") or 0), 6),
+                        round(float(existing.get("price") or 0), 2),
+                    )
+                )
+            break
 
 
 # ---- OI fetchers ----

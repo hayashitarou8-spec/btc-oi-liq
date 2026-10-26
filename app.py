@@ -188,6 +188,27 @@ def fetch_binance_oi() -> dict:
     }
 
 
+_bn_block = {"until": 0.0, "code": None}
+
+
+def fetch_binance_oi_safe() -> dict:
+    """Binance blocks some cloud IPs (418/451/403). Back off and let the browser fetch."""
+    import urllib.error
+    now = time.time()
+    if now < _bn_block["until"]:
+        return {"ex": "binance", "symbol": "BTCUSDT", "unavailable": True,
+                "reason": "binance_geo_block", "error": f"HTTP {_bn_block['code']} (server IP blocked)"}
+    try:
+        return fetch_binance_oi()
+    except urllib.error.HTTPError as e:
+        if e.code in (418, 451, 403, 429):
+            _bn_block["until"] = now + 120
+            _bn_block["code"] = e.code
+            return {"ex": "binance", "symbol": "BTCUSDT", "unavailable": True,
+                    "reason": "binance_geo_block", "error": f"HTTP {e.code} (server IP blocked)"}
+        raise
+
+
 def fetch_bybit_oi() -> dict:
     tk = http_json("https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT")
     row = (tk.get("result") or {}).get("list") or []
@@ -321,7 +342,7 @@ def snapshot_oi() -> dict:
     out = {"ts": int(time.time() * 1000), "exchanges": {}}
     from concurrent.futures import ThreadPoolExecutor, as_completed
     jobs = (
-        ("binance", fetch_binance_oi, 4),
+        ("binance", fetch_binance_oi_safe, 4),
         ("bybit", fetch_bybit_oi, 4),
         ("okx", fetch_okx_oi, 4),
     )

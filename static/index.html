@@ -380,7 +380,7 @@ function renderOi(oi){
     html += `<div class="ex ${tone==='flat'?'':tone}">
       <div class="top">
         <div class="ab" style="background:${meta.ac};box-shadow:0 0 16px ${meta.acg}">${meta.ab}</div>
-        <div class="nm">${esc(meta.label)}<small>${esc(r.symbol||'')}</small></div>
+        <div class="nm">${esc(meta.label)}<small>${esc(r.symbol||'')}${r.via==='device'?' · 端末経由':''}</small></div>
         <div class="share"><b>${share==null?'—':share.toFixed(0)+'%'}</b><span>シェア</span></div>
       </div>
       <div class="oirow">
@@ -483,6 +483,70 @@ function renderLiq(liq){
   }).join('');
 }
 
+// ---- Binance via device (server IP blocked by Binance) ----
+const BN='https://fapi.binance.com';
+let bnClient=null, bnClientTs=0, bnClientErr=null, bnBusy=false;
+async function bnGet(path){ const r=await fetch(BN+path,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }
+async function fetchBinanceClient(){
+  if(bnBusy || Date.now()-bnClientTs<8000) return;
+  bnBusy=true;
+  try{
+    const [cur,tk,mk,h5,h1]=await Promise.all([
+      bnGet('/fapi/v1/openInterest?symbol=BTCUSDT'), bnGet('/fapi/v1/ticker/24hr?symbol=BTCUSDT'),
+      bnGet('/fapi/v1/premiumIndex?symbol=BTCUSDT'),
+      bnGet('/futures/data/openInterestHist?symbol=BTCUSDT&period=5m&limit=13'),
+      bnGet('/futures/data/openInterestHist?symbol=BTCUSDT&period=1h&limit=25')]);
+    const n=x=>{const v=parseFloat(x);return Number.isFinite(v)?v:null;};
+    const oi=n(cur.openInterest), px=n(mk.markPrice)||n(tk.lastPrice);
+    const delta=(h,k)=>{ if(!h||h.length<=k) return [null,null,null]; const a=h[h.length-1-k], b=h[h.length-1];
+      const oa=n(a.sumOpenInterest), ob=n(b.sumOpenInterest), ua=n(a.sumOpenInterestValue), ub=n(b.sumOpenInterestValue);
+      if(oa==null||ob==null) return [null,null,null]; return [ob-oa, oa?(ob-oa)/oa*100:null, (ua!=null&&ub!=null)?ub-ua:null]; };
+    const [d1,p1,u1]=delta(h5,12), [d24,p24,u24]=delta(h1,24);
+    bnClient={ex:'binance',symbol:'BTCUSDT',oi_btc:oi,oi_usd:(oi!=null&&px)?oi*px:null,price:px,
+      chg24h_pct:n(tk.priceChangePercent),funding:n(mk.lastFundingRate),d1h_btc:d1,d1h_pct:p1,d1h_usd:u1,
+      d24h_btc:d24,d24h_pct:p24,d24h_usd:u24,ts:cur.time||Date.now(),via:'device'};
+    bnClientErr=null;
+  }catch(e){ bnClientErr=String(e&&e.message||e); }
+  finally{ bnClientTs=Date.now(); bnBusy=false; }
+}
+function mergeBinance(oi){
+  const ex=oi.exchanges=oi.exchanges||{};
+  const s=ex.binance;
+  if(s && !s.unavailable && !s.error) return oi;
+  fetchBinanceClient();
+  if(bnClient && Date.now()-bnClient.ts<120000){
+    ex.binance=bnClient;
+  }else if(bnClientErr){
+    ex.binance={symbol:'BTCUSDT',unavailable:true,error:'取得不可（取引所がクラウドIPを遮断 / 端末からも失敗: '+bnClientErr+'）'};
+  }else{
+    ex.binance={symbol:'BTCUSDT',unavailable:true,error:'サーバーIPが遮断されたため端末経由で取得中…'};
+  }
+  let n=0,b=0,u=0;
+  for(const v of Object.values(ex)){ if(v&&!v.unavailable&&!v.error&&v.oi_btc!=null){ n++; b+=v.oi_btc; if(v.oi_usd!=null) u+=v.oi_usd; } }
+  oi.agg=Object.assign({},oi.agg||{}, {n, oi_btc:n?b:null, oi_usd:n?u:null});
+  return oi;
+}
+// Binance liquidations via device WS (server WS from cloud may be silent)
+const bnLiqs=[];
+(function bnWs(){
+  try{
+    const ws=new WebSocket('wss://fstream.binance.com/ws/btcusdt@forceOrder');
+    ws.onmessage=ev=>{ try{ const o=JSON.parse(ev.data).o; if(!o) return;
+      const qty=parseFloat(o.z||o.q), price=parseFloat(o.ap||o.p);
+      bnLiqs.unshift({ex:'binance',side:o.S==='SELL'?'long':'short',qty,price,notional:qty*price,ts:o.T,via:'device'});
+      if(bnLiqs.length>200) bnLiqs.length=200; }catch(_){} };
+    ws.onclose=()=>setTimeout(bnWs,5000);
+  }catch(_){ setTimeout(bnWs,10000); }
+})();
+function mergeLiqFeed(liq){
+  const feed=(liq.feed||[]).slice();
+  const seen=new Set(feed.map(r=>[r.ex,r.ts,r.side,(+r.qty).toFixed(6)].join('|')));
+  for(const r of bnLiqs){ const k=[r.ex,r.ts,r.side,(+r.qty).toFixed(6)].join('|'); if(!seen.has(k)){ seen.add(k); feed.push(r);} }
+  feed.sort((a,b)=>(b.ts||0)-(a.ts||0));
+  liq.feed=feed;
+  return liq;
+}
+
 let fail=0;
 async function tick(){
   try{
@@ -492,8 +556,8 @@ async function tick(){
     fail=0;
     $('liveDot').className='live';
     $('liveTxt').textContent='LIVE · '+clock(d.ts)+' JST';
-    renderOi(d.oi||{});
-    renderLiq(d.liq||{});
+    renderOi(mergeBinance(d.oi||{}));
+    renderLiq(mergeLiqFeed(d.liq||{}));
   }catch(e){
     fail++;
     $('liveDot').className='live '+(fail>2?'off':'warn');

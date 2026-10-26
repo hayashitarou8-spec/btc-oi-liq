@@ -1,0 +1,5 @@
+.access_token
+.venv
+.git
+__pycache__
+*.log

@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: btc-oi-liq
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: ACCESS_TOKEN
+        sync: false

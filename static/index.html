@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#0a0c10"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<link rel="manifest" href="/manifest.webmanifest"/>
+<title>BTC OI / Liq</title>
+<style>
+:root{
+  --bg:#07090d; --panel:#10141c; --panel2:#151b26; --line:#1e2736;
+  --text:#e8eef8; --muted:#8b97ab; --dim:#5c6a80;
+  --green:#3dff9a; --red:#ff4d6d; --amber:#ffc14d; --cyan:#4dc9ff; --violet:#a78bfa;
+  --glow:0 0 40px rgba(77,201,255,.12);
+  font-family: "SF Pro Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:radial-gradient(1200px 600px at 10% -10%,#122036 0%,var(--bg) 55%);color:var(--text);min-height:100%}
+body{padding:14px 14px 40px; -webkit-font-smoothing:antialiased}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px}
+.h1{font-size:22px;font-weight:780;letter-spacing:.02em;margin:0}
+.h1 span{color:var(--cyan)}
+.sub{color:var(--muted);font-size:12px;margin-top:4px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(77,201,255,.08);border:1px solid rgba(77,201,255,.25);font-size:11px;color:var(--cyan)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+.dot.off{background:var(--dim);box-shadow:none}
+.dot.warn{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.hero{background:linear-gradient(145deg,rgba(77,201,255,.12),rgba(167,139,250,.08) 40%,rgba(16,20,28,.9));border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:var(--glow);margin-bottom:12px}
+.price{font-size:34px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.price .chg{font-size:14px;margin-left:8px;font-weight:700}
+.up{color:var(--green)}.down{color:var(--red)}.flat{color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.stat{background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:14px;padding:12px}
+.stat .k{font-size:11px;color:var(--muted);margin-bottom:6px}
+.stat .v{font-size:18px;font-weight:750;font-variant-numeric:tabular-nums}
+.stat .s{font-size:11px;color:var(--dim);margin-top:4px}
+.section{margin-top:16px}
+.section h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:700}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px}
+.card.ex{display:grid;grid-template-columns:88px 1fr;gap:10px;align-items:center}
+.exname{font-weight:800;font-size:14px}
+.exname small{display:block;color:var(--dim);font-weight:600;font-size:10px;margin-top:2px}
+.metrics{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.m .k{font-size:10px;color:var(--dim)}
+.m .v{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.barwrap{height:10px;background:#0d121a;border-radius:999px;overflow:hidden;display:flex;margin:10px 0 6px}
+.barL{background:linear-gradient(90deg,#ff4d6d,#ff7a90);height:100%}
+.barS{background:linear-gradient(90deg,#3dff9a,#7dffb8);height:100%}
+.legend{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.feed{max-height:420px;overflow:auto;-webkit-overflow-scrolling:touch}
+.row{display:grid;grid-template-columns:54px 52px 1fr 1fr;gap:8px;padding:10px 4px;border-bottom:1px solid #141a24;font-size:12px;font-variant-numeric:tabular-nums;align-items:center}
+.row:first-child{border-top:1px solid #141a24}
+.tag{padding:3px 7px;border-radius:8px;font-size:10px;font-weight:800;text-align:center}
+.tag.long{background:rgba(255,77,109,.15);color:var(--red)}
+.tag.short{background:rgba(61,255,154,.12);color:var(--green)}
+.tag.ex{background:rgba(167,139,250,.12);color:var(--violet)}
+.na{color:var(--amber);font-size:12px}
+.foot{margin-top:18px;color:var(--dim);font-size:11px;line-height:1.5}
+.wsrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+@media (min-width:720px){
+  body{max-width:720px;margin:0 auto}
+  .metrics{grid-template-columns:repeat(4,1fr)}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1 class="h1">BTC <span>OI / Liq</span></h1>
+    <div class="sub">Binance · Bybit · OKX　公開データのみ</div>
+  </div>
+  <div class="pill" id="livePill"><span class="dot" id="liveDot"></span><span id="liveTxt">接続中</span></div>
+</header>
+
+<section class="hero" id="hero">
+  <div class="price" id="price">— <span class="chg flat" id="chg"></span></div>
+  <div class="grid">
+    <div class="stat"><div class="k">合算 OI</div><div class="v" id="aggOi">—</div><div class="s" id="aggOiUsd">3取引所</div></div>
+    <div class="stat"><div class="k">清算 1h</div><div class="v" id="liq1h">—</div><div class="s" id="liq1hSide">Long / Short</div></div>
+    <div class="stat"><div class="k">清算 24h*</div><div class="v" id="liq24h">—</div><div class="s" id="liq24hSide">蓄積ベース</div></div>
+    <div class="stat"><div class="k">更新</div><div class="v" id="upd" style="font-size:15px">—</div><div class="s" id="uptime">uptime</div></div>
+  </div>
+  <div class="wsrow" id="wsRow"></div>
+</section>
+
+<section class="section">
+  <h2>Open Interest</h2>
+  <div id="oiCards"></div>
+</section>
+
+<section class="section">
+  <h2>Liquidations</h2>
+  <div class="card">
+    <div class="legend"><span>Long 清算 <b id="legL" class="down">—</b></span><span>Short 清算 <b id="legS" class="up">—</b></span></div>
+    <div class="barwrap"><div class="barL" id="barL" style="width:50%"></div><div class="barS" id="barS" style="width:50%"></div></div>
+    <div class="sub" style="margin:0" id="liqNote">—</div>
+  </div>
+  <div class="card feed" id="feed"></div>
+</section>
+
+<p class="foot" id="foot">
+* 24h清算はサーバーが受け取った分の合算です。起動直後や無料枠スリープ後は不完全になります。取得失敗時は「データ取得不可」。数値は捏造しません。
+</p>
+
+<script>
+const $ = (id)=>document.getElementById(id);
+const NA = 'データ取得不可';
+function fmt(n, d=2){
+  if(n==null || Number.isNaN(+n)) return '—';
+  const x=+n;
+  const a=Math.abs(x);
+  if(a>=1e9) return (x/1e9).toFixed(2)+'B';
+  if(a>=1e6) return (x/1e6).toFixed(2)+'M';
+  if(a>=1e3) return (x/1e3).toFixed(2)+'K';
+  return x.toFixed(d);
+}
+function fmtBtc(n){ return n==null||Number.isNaN(+n)?'—':(+n).toFixed(3)+' BTC'; }
+function fmtUsd(n){ return n==null||Number.isNaN(+n)?'—':'$'+fmt(n,2); }
+function pct(n){
+  if(n==null||Number.isNaN(+n)) return '—';
+  const s = (+n>=0?'+':'')+(+n).toFixed(2)+'%';
+  return s;
+}
+function cls(n){ if(n==null||Number.isNaN(+n)||n===0) return 'flat'; return n>0?'up':'down'; }
+function jst(ts){
+  if(!ts) return '—';
+  try{
+    return new Date(ts).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo', hour12:false});
+  }catch(e){ return '—'; }
+}
+function clock(ts){
+  if(!ts) return '—';
+  return new Date(ts).toLocaleTimeString('ja-JP',{timeZone:'Asia/Tokyo', hour12:false});
+}
+
+function renderOi(oi){
+  const ex = oi.exchanges||{};
+  const order=['binance','bybit','okx'];
+  const labels={binance:'Binance',bybit:'Bybit',okx:'OKX'};
+  let html='';
+  let price=null, chg=null;
+  for(const k of order){
+    const r=ex[k];
+    if(!r){ html+=`<div class="card"><div class="na">${labels[k]}: ${NA}</div></div>`; continue; }
+    if(r.unavailable || r.error){
+      html+=`<div class="card"><div class="exname">${labels[k]}</div><div class="na">${NA}</div><div class="s" style="color:var(--dim);font-size:10px;margin-top:4px">${r.error||''}</div></div>`;
+      continue;
+    }
+    if(price==null && r.price!=null){ price=r.price; chg=r.chg24h_pct; }
+    html += `<div class="card ex">
+      <div class="exname">${labels[k]}<small>${r.symbol||''}</small></div>
+      <div class="metrics">
+        <div class="m"><div class="k">OI</div><div class="v">${fmtBtc(r.oi_btc)}</div></div>
+        <div class="m"><div class="k">OI USD</div><div class="v">${fmtUsd(r.oi_usd)}</div></div>
+        <div class="m"><div class="k">1h Δ</div><div class="v ${cls(r.d1h_btc)}">${r.d1h_btc==null?'—':((r.d1h_btc>=0?'+':'')+fmt(r.d1h_btc,2)+' / '+pct(r.d1h_pct))}</div></div>
+        <div class="m"><div class="k">24h Δ</div><div class="v ${cls(r.d24h_btc)}">${r.d24h_btc==null?'—':((r.d24h_btc>=0?'+':'')+fmt(r.d24h_btc,2)+' / '+pct(r.d24h_pct))}</div></div>
+      </div>
+    </div>`;
+  }
+  $('oiCards').innerHTML=html;
+  if(price!=null){
+    $('price').innerHTML = '$'+Number(price).toLocaleString('en-US',{maximumFractionDigits:1})+
+      ` <span class="chg ${cls(chg)}" id="chg">${pct(chg)}</span>`;
+  }else{
+    $('price').textContent = NA;
+  }
+  const agg=oi.agg||{};
+  $('aggOi').textContent = agg.oi_btc==null?NA:fmtBtc(agg.oi_btc);
+  $('aggOiUsd').textContent = agg.oi_usd==null?'—':fmtUsd(agg.oi_usd)+' · '+(agg.n||0)+'所';
+}
+
+function renderLiq(liq){
+  const h1=liq.h1||{}, h24=liq.h24||{};
+  $('liq1h').textContent = h1.n? fmtUsd(h1.total_usd) : '—';
+  $('liq1hSide').textContent = `L ${fmtUsd(h1.long_usd)} / S ${fmtUsd(h1.short_usd)} · n=${h1.n||0}`;
+  $('liq24h').textContent = h24.n? fmtUsd(h24.total_usd) : '—';
+  $('liq24hSide').textContent = `L ${fmtUsd(h24.long_usd)} / S ${fmtUsd(h24.short_usd)} · n=${h24.n||0}`;
+  const L=h1.long_usd||0, S=h1.short_usd||0, T=L+S;
+  const lp = T? (L/T*100) : 50;
+  $('barL').style.width = lp+'%';
+  $('barS').style.width = (100-lp)+'%';
+  $('legL').textContent = fmtUsd(L);
+  $('legS').textContent = fmtUsd(S);
+  $('liqNote').textContent = liq.caveat || '';
+  $('uptime').textContent = 'uptime '+(liq.uptime_s||0)+'s';
+
+  const ws=liq.ws||{};
+  let wshtml='';
+  for(const [k,v] of Object.entries(ws)){
+    const ok=v&&v.ok; const cls=ok?'':' off';
+    wshtml += `<span class="pill"><span class="dot${cls}"></span>${k} WS ${ok?'live':'待機'}</span>`;
+  }
+  if(liq.okx_rest_error) wshtml += `<span class="pill"><span class="dot warn"></span>okx REST エラー</span>`;
+  $('wsRow').innerHTML=wshtml;
+
+  const feed=liq.feed||[];
+  if(!feed.length){
+    $('feed').innerHTML = `<div class="na" style="padding:8px">清算フィード待ち / ${NA}</div>`;
+    return;
+  }
+  $('feed').innerHTML = feed.map(r=>{
+    const side=r.side==='long'?'long':'short';
+    const label=side==='long'?'LONG':'SHORT';
+    return `<div class="row">
+      <span class="tag ex">${(r.ex||'').slice(0,3).toUpperCase()}</span>
+      <span class="tag ${side}">${label}</span>
+      <span>${fmtBtc(r.qty)}<br><span style="color:var(--dim)">${fmtUsd(r.notional)}</span></span>
+      <span style="text-align:right">${r.price!=null?('$'+Number(r.price).toFixed(1)):'—'}<br><span style="color:var(--dim)">${clock(r.ts)}</span></span>
+    </div>`;
+  }).join('');
+}
+
+let fail=0;
+async function tick(){
+  try{
+    const r=await fetch('/api/snapshot',{cache:'no-store'});
+    if(!r.ok) throw new Error('http '+r.status);
+    const d=await r.json();
+    fail=0;
+    $('liveDot').className='dot';
+    $('liveTxt').textContent='LIVE · '+clock(d.ts);
+    $('upd').textContent=clock(d.ts);
+    renderOi(d.oi||{});
+    renderLiq(d.liq||{});
+  }catch(e){
+    fail++;
+    $('liveDot').className='dot '+(fail>2?'off':'warn');
+    $('liveTxt').textContent=fail>2?'切断':'再試行';
+    if(fail>3){
+      $('aggOi').textContent=NA;
+    }
+  }
+}
+tick();
+setInterval(tick, 3000);
+</script>
+</body>
+</html>

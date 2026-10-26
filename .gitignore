@@ -8,3 +8,5 @@ __pycache__/
 .gh_token
 .access_token
 .env
+shots/
+static/index_v1.html

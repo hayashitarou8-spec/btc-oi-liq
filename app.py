@@ -640,12 +640,12 @@ def api_snapshot():
 def manifest():
     return JSONResponse(
         {
-            "name": "BTC OI / Liq",
+            "name": "BTC OI / 清算",
             "short_name": "BTC OI",
             "start_url": "/",
             "display": "standalone",
-            "background_color": "#0a0c10",
-            "theme_color": "#0a0c10",
+            "background_color": "#020409",
+            "theme_color": "#020409",
             "icons": [{"src": "/icon.png", "sizes": "192x192", "type": "image/png"}],
         },
         media_type="application/manifest+json",
